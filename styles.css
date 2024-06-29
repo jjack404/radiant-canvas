@@ -239,13 +239,13 @@ button {
 @media only screen and (min-width: 768px) {
   
   #logo {
-    margin: .5em;
+    margin: auto;
   }
 
   #app-container {
   border: 1px solid black;
   background-color: #FFF9E1;
-  margin: auto;
+  margin: .5em auto;
   padding: 1.25em 0;
   display: flex;
   flex-direction: column;
