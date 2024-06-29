@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Draw-a-Radiant</title>
+  <link rel="icon" type="image/x-icon" href="icon.ico">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/joystix">
+</head>
+
+<body>
+  <section id="top-bar">
+    <div id="logo">
+    <svg width="2em" height="2em" viewBox="0 0 112 112" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path fill-rule="evenodd" clip-rule="evenodd"
+        d="M51.6924 8.61538V0H60.3078V8.61538H68.9232V17.2308H43.077V8.61538H51.6924ZM103.385 51.692H112V60.3074H103.385V68.9228H94.7694V43.0766H103.385V51.692ZM0 60.3077H8.61538V68.9231H17.2308V43.0769H8.61538V51.6923H0V60.3077ZM25.8464 25.8464V34.4618H17.231V17.231H34.4618V25.8464H25.8464ZM77.5384 25.8464H86.1538V34.4618H94.7691V17.231H77.5384V25.8464ZM86.1538 86.1533L86.1538 77.538H94.7691V94.7687H77.5384V86.1533H86.1538ZM34.4618 86.1533H25.8464V77.538H17.231V94.7687H34.4618V86.1533ZM60.3077 103.384V112H51.6923L51.6923 103.384H43.0769V94.7689H68.9231V103.384H60.3077ZM43.0767 25.8461H68.9229V34.4614H77.5383V43.0768H86.1536V68.923H77.5383V77.5384H68.9229V86.1538H43.0767V77.5384H34.4613V68.923H25.8459V43.0768H34.4613V34.4614H43.0767V25.8461Z"
+        fill="#FFF9E1" />
+    </svg>
+  </div>
+  <div id="connect-wrap">
+    <button id="connect-btn">Connect</button>
+  </div>
+</section>
+
+  <section id="app-container">
+    <div id="control-container">
+      <!-- color picker -->
+
+      <div id="color-picker">
+        <div id="show-grid"><button id="show-grid-btn">Show Grid</button></div>
+        <div id="color-grid">
+          <button id="color-1" style="background-color: #FCE184;"></button>
+          <button id="color-2" style="background-color: #FFF9E1;"></button>
+          <button id="color-3" style="background-color: #0F0E0C;"></button>
+        </div>
+      </div>
+      <div id="undo-redo-wrap">
+        <button id="undo-btn">Undo</button>
+        <button id="redo-btn">Redo</button>
+      </div>
+    </div>
+
+    <div id="canvas-container">
+      <canvas id="canvas" width="3200" height="3200"></canvas>
+      <canvas id="grid-canvas" width="3200" height="3200"></canvas>
+      <canvas id="highlight-canvas" width="3200" height="3200"></canvas>
+    </div>
+    
+
+
+    <div id="btn-container">
+      <button id="clear-btn">Clear</button>
+      <button id="save-btn">Save</button>
+    </div>
+
+    <div id="mint-wrap">
+      <button id="mint-btn">Mint</button>
+    </div>
+  </div>
+  </div>
+
+  <script src="app.js"></script>
+
+
+</body>
+
+</html>
