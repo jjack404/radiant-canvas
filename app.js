@@ -1,5 +1,56 @@
+class Action {
+    constructor(type, coordinates, color, previousState) {
+        this.type = type; // 'draw', 'clear', etc.
+        this.coordinates = coordinates; // Array of {x, y}
+        this.color = color; // The color used for the action
+        this.previousState = previousState; // Previous color(s) before the action
+    }
+}
+
+class UndoRedoManager {
+    constructor() {
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    // Add a new action and clear the redo stack
+    addAction(action) {
+        this.undoStack.push(action);
+        this.redoStack = [];
+    }
+
+    // Undo the last action
+    undo(ctx, pixelSize) {
+        if (this.undoStack.length > 0) {
+            const action = this.undoStack.pop();
+            this.applyAction(ctx, action, true, pixelSize); // Apply the action in reverse
+            this.redoStack.push(action);
+        }
+    }
+
+    // Redo the last undone action
+    redo(ctx, pixelSize) {
+        if (this.redoStack.length > 0) {
+            const action = this.redoStack.pop();
+            this.applyAction(ctx, action, false, pixelSize); // Reapply the action
+            this.undoStack.push(action);
+        }
+    }
+
+    // Apply or reverse an action
+    applyAction(ctx, action, isUndo, pixelSize) {
+        action.coordinates.forEach(coord => {
+            const x = coord.x * pixelSize;
+            const y = coord.y * pixelSize;
+            const color = isUndo ? action.previousState[`${coord.x}_${coord.y}`] : action.color;
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, pixelSize, pixelSize);
+        });
+    }
+}
+
 class DrawingApp {
-    constructor(canvas, gridCanvas, maxHistory = 100) {
+    constructor(canvas, gridCanvas) {
         this.canvas = canvas;
         this.gridCanvas = gridCanvas;
         this.ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -9,9 +60,6 @@ class DrawingApp {
         this.currentColor = '#0F0E0C';
         this.defaultCanvasColor = '#FCE184';
         this.gridVisible = false;
-        this.history = []; // Operation history
-        this.redoHistory = []; // Operations that can be redone
-        this.maxHistory = maxHistory;
         this.initCanvas();
         this.initGridCanvas();
         this.attachEventListeners();
@@ -19,7 +67,7 @@ class DrawingApp {
         this.highlightCtx = this.highlightCanvas.getContext('2d');
         this.canvasRect = this.canvas.getBoundingClientRect(); // Cache the rect to avoid reflows
         this.pixelSize = this.canvas.width / 32; // Defines the resolution of the grid
-        this.currentStateIndex = -1;
+        this.undoRedoManager = new UndoRedoManager();
     }
 
     compareImageData(imgData1, imgData2) {
@@ -33,7 +81,6 @@ class DrawingApp {
         }
         return true;
     }
-
 
     initCanvas() {
         this.canvas.width = 3200;
@@ -61,10 +108,6 @@ class DrawingApp {
             this.ctx.fillRect(rightNeckX, this.canvas.height - this.pixelSize - (i * this.pixelSize), this.pixelSize, this.pixelSize);
         }
 
-        // Save the initial state with the neck lines
-        this.history.push(this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height));
-        this.currentStateIndex = 0;
-
         // Set up a property to hold the neck line cells' coordinates for checking during drawing
         this.neckLineCells = new Set();
         for (let i = 0; i < 7; i++) {
@@ -75,8 +118,6 @@ class DrawingApp {
         }
     }
 
-
-    // Helper function to draw rectangles on the canvas
     drawRect(x, y, color, size) {
         this.ctx.fillStyle = color;
         this.ctx.fillRect(x * size, y * size, size, size);
@@ -95,30 +136,6 @@ class DrawingApp {
         this.redrawNeckLines(); // Ensure neck lines are redrawn every time the canvas is filled
     }
 
-    // Redraw the entire canvas based on the history of operations
-    redraw() {
-        this.clearCanvas(); // Clears the entire canvas
-        this.fillCanvas(this.defaultCanvasColor); // Fill canvas with the default color
-        this.redrawNeckLines(); // Redraw the static neck lines
-
-        // Redraw all operations from the history
-        for (const op of this.history) {
-            this.redrawOperation(op);
-        }
-    }
-
-
-    // Redraw a single operation
-    redrawOperation(op) {
-        if (op.type === 'line') {
-            this.drawLine(op.x0, op.y0, op.x1, op.y1);
-        } else if (op.type === 'pixel') {
-            this.drawPixel(op.x, op.y);
-        }
-        // Handle other types of operations as needed
-    }
-
-    // Clear the canvas
     clearCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
@@ -169,7 +186,6 @@ class DrawingApp {
     }
 
     getMousePosition(event) {
-        // Adjust calculations for the current canvas size and position
         return {
             x: Math.floor((event.clientX - this.canvasRect.left) / (this.canvasRect.right - this.canvasRect.left) * this.canvas.width / this.pixelSize),
             y: Math.floor((event.clientY - this.canvasRect.top) / (this.canvasRect.bottom - this.canvasRect.top) * this.canvas.height / this.pixelSize)
@@ -185,10 +201,8 @@ class DrawingApp {
 
         document.getElementById('clear-btn').addEventListener('click', () => {
             this.fillCanvas(this.defaultCanvasColor); // When clear button is clicked, fill the canvas with the default color
-            this.saveState();
         });
-        document.getElementById('undo-btn').addEventListener('click', this.undo.bind(this));
-        document.getElementById('redo-btn').addEventListener('click', this.redo.bind(this));
+
         document.getElementById('show-grid-btn').addEventListener('click', this.toggleGrid.bind(this));
 
         document.querySelectorAll('#color-grid button').forEach(button => {
@@ -198,22 +212,26 @@ class DrawingApp {
                 event.target.classList.add('selected');
             });
         });
+
+        document.getElementById('undo-btn').addEventListener('click', () => {
+            this.undoRedoManager.undo(this.ctx, this.pixelSize);
+        });
+
+        document.getElementById('redo-btn').addEventListener('click', () => {
+            this.undoRedoManager.redo(this.ctx, this.pixelSize);
+        });
     }
 
     highlightCell(event) {
         this.canvasRect = this.canvas.getBoundingClientRect(); // Update rect in case of page reflows
         const pos = this.getMousePosition(event);
 
-        // Get the color data of the current pixel
         const pixelData = this.ctx.getImageData(pos.x * this.pixelSize, pos.y * this.pixelSize, 1, 1).data;
 
-        // Invert the color
         const invertedColor = `rgb(${255 - pixelData[0]}, ${255 - pixelData[1]}, ${255 - pixelData[2]})`;
 
-        // Clear the previous highlight
         this.clearHighlight();
 
-        // Set the stroke style to the inverted color and highlight the cell
         this.highlightCtx.strokeStyle = invertedColor;
         this.highlightCtx.lineWidth = 10;
         this.highlightCtx.strokeRect(pos.x * this.pixelSize, pos.y * this.pixelSize, this.pixelSize, this.pixelSize);
@@ -223,14 +241,12 @@ class DrawingApp {
         this.highlightCtx.clearRect(0, 0, this.highlightCanvas.width, this.highlightCanvas.height);
     }
 
-    // startDrawing and keepDrawing now use grid coordinates
     startDrawing(event) {
         this.isDrawing = true;
         const pos = this.getMousePosition(event);
         this.drawPixel(pos.x, pos.y);
     }
 
-    // Use requestAnimationFrame for drawing operations
     keepDrawing(event) {
         if (!this.isDrawing) return;
         const pos = this.getMousePosition(event);
@@ -249,14 +265,10 @@ class DrawingApp {
         if (this.isDrawing) {
             this.isDrawing = false;
             this.lastPos = null;
-            this.saveState();
         }
     }
 
-
-    // Interpolate and draw lines strictly within grid cells
     drawLine(x0, y0, x1, y1) {
-        // Calculate the difference between the points
         let dx = Math.abs(x1 - x0);
         let dy = Math.abs(y1 - y0);
         let sx = (x0 < x1) ? 1 : -1;
@@ -264,7 +276,6 @@ class DrawingApp {
         let err = dx - dy;
         let e2;
 
-        // Draw initial pixel
         this.drawPixel(x0, y0);
 
         while (x0 !== x1 || y0 !== y1) {
@@ -277,106 +288,24 @@ class DrawingApp {
                 err += dx;
                 y0 += sy;
             }
-            // Draw pixel at the new position
             this.drawPixel(x0, y0);
         }
     }
 
-    // Draw a pixel only if it's not on the neck lines and only within the grid
     drawPixel(x, y) {
         if (!this.isNeckLineCell(x, y)) {
-            // Save the operation instead of the whole canvas
-            this.lastOperation = {
-                type: 'pixel',
-                x,
-                y,
-                color: this.currentColor
-            };
+            const previousState = this.ctx.getImageData(x * this.pixelSize, y * this.pixelSize, 1, 1).data;
+            const previousColor = `rgb(${previousState[0]}, ${previousState[1]}, ${previousState[2]})`;
+            const action = new Action('draw', [{x, y}], this.currentColor, {[`${x}_${y}`]: previousColor});
+            this.undoRedoManager.addAction(action);
             this.ctx.fillStyle = this.currentColor;
             this.ctx.fillRect(x * this.pixelSize, y * this.pixelSize, this.pixelSize, this.pixelSize);
         }
     }
 
-
-
-    // Add the logic in the isNeckLineCell function
     isNeckLineCell(x, y) {
-        // Check if the cell's coordinates are in the set of neck line cells
         return this.neckLineCells.has(`${x}_${y}`);
     }
-
-
-
-    saveState() {
-        // Debounce saveState to run only after drawing has finished
-        if (!this.isDrawing && !this.saveStateTimeout) {
-            this.saveStateTimeout = setTimeout(() => {
-                this.actualSaveState();
-                clearTimeout(this.saveStateTimeout);
-                this.saveStateTimeout = null;
-            }, 500); // Adjust time for throttle as necessary
-        }
-    }
-
-    actualSaveState() {
-        if (this.lastOperation) {
-            this.history.push(this.lastOperation);
-            this.currentStateIndex++;
-            this.lastOperation = null;
-
-            // Limit history length
-            while (this.history.length > this.maxHistory) {
-                this.history.shift();
-                this.currentStateIndex--;
-            }
-        }
-    }
-
-
-    // Optimize drawPixel to minimize redrawing
-    drawPixel(gridX, gridY) {
-        // Only draw if we're currently drawing and it's not a neck line cell
-        if (this.isDrawing && !this.isNeckLineCell(gridX, gridY)) {
-            this.ctx.fillStyle = this.currentColor;
-            this.ctx.fillRect(gridX * this.pixelSize, gridY * this.pixelSize, this.pixelSize, this.pixelSize);
-        }
-    }
-
-    undo() {
-        if (this.currentStateIndex >= 0) {
-            // Removing the last operation from the history
-            const lastOp = this.history.pop();
-
-            // Adding it to the redo history
-            this.redoHistory.push(lastOp);
-
-            // Decrementing the currentStateIndex
-            this.currentStateIndex--;
-
-            // Redrawing all operations except the last one
-            this.redraw();
-        }
-    }
-
-
-
-    redo() {
-        if (this.redoHistory.length > 0) {
-            // Getting the last operation from the redoHistory
-            const operation = this.redoHistory.pop();
-
-            // Adding it back to the history
-            this.history.push(operation);
-
-            // Incrementing the currentStateIndex
-            this.currentStateIndex++;
-
-            // Redrawing the operation that was just added back
-            this.redrawOperation(operation);
-        }
-    }
-
-
 }
 
 document.addEventListener('DOMContentLoaded', () => {
